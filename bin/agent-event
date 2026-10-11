@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Agent tracking log helpers.
+
+  agent-event '<json>'          append an event to ~/.claude/agent-events.jsonl
+  agent-event log <id> <text>   append text to the live log ~/.claude/agent-runs/<id>.log
+"""
+import json, os, sys, time
+
+LOG = os.path.expanduser("~/.claude/agent-events.jsonl")
+RUNS = os.path.expanduser("~/.claude/agent-runs")
+END_MARK = "■ END"
+
+
+def emit(event):
+    event.setdefault("ts", time.time())
+    os.makedirs(os.path.dirname(LOG), exist_ok=True)
+    with open(LOG, "a") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+def run_log(run_id, text):
+    os.makedirs(RUNS, exist_ok=True)
+    with open(os.path.join(RUNS, f"{run_id}.log"), "a") as f:
+        f.write(text if text.endswith("\n") else text + "\n")
+
+
+if __name__ == "__main__":
+    if sys.argv[1] == "log":
+        run_log(sys.argv[2], sys.argv[3])
+    else:
+        emit(json.loads(sys.argv[1]))

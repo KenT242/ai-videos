@@ -1,0 +1,18 @@
+{
+  "name": "kent-mods",
+  "owner": {
+    "name": "kent"
+  },
+  "plugins": [
+    {
+      "name": "agent-dashboard",
+      "source": "./agent-dashboard",
+      "description": "Dashboard of agy and subagent runs, session ctx/tokens/limits, sessions messaging, agy review gate, /delegate hints, /usage-report"
+    },
+    {
+      "name": "agent-guard",
+      "source": "./agent-guard",
+      "description": "Ask before destructive commands and secret-file reads; block secrets in agy briefs"
+    }
+  ]
+}

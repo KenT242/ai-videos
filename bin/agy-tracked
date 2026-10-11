@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Run agy with the given args, tracking it for the agent-tracker pane and tmux view.
+
+Usage: agy-tracked [agy args...]   (same args as agy)
+
+Runs agy with --output-format stream-json, writes a readable live log to
+~/.claude/agent-runs/<id>.log, logs start/end to ~/.claude/agent-events.jsonl,
+opens a tmux pane for it (agent-watch), and prints the final result as one JSON
+line, as `--output-format json` would.
+"""
+import json, os, signal, subprocess, sys, time, uuid
+
+import importlib.util
+from importlib.machinery import SourceFileLoader
+
+_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "agent-event")
+_loader = SourceFileLoader("agent_event", _path)
+ev = importlib.util.module_from_spec(importlib.util.spec_from_loader("agent_event", _loader))
+_loader.exec_module(ev)
+
+AGY = os.environ.get("AGY_TRACKED_BIN") or os.path.expanduser("~/.local/bin/agy")
+
+
+def arg_after(args, *flags):
+    for i, a in enumerate(args):
+        if a in flags and i + 1 < len(args):
+            return args[i + 1]
+    return None
+
+
+def with_stream_json(args):
+    out, skip = [], False
+    for i, a in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        if a == "--output-format":
+            skip = True
+            continue
+        if a.startswith("--output-format="):
+            continue
+        out.append(a)
+    return out + ["--output-format", "stream-json"]
+
+
+def parse_duration(text):
+    """'600s', '10m0s', '1h30m', '90' -> seconds, or None."""
+    if not text:
+        return None
+    import re
+    parts = re.findall(r"(\d+(?:\.\d+)?)([hms]?)", text)
+    if not parts:
+        return None
+    scale = {"h": 3600, "m": 60, "s": 1, "": 1}
+    return sum(float(n) * scale[u] for n, u in parts)
+
+
+def find_usage(obj, depth=0):
+    """The deepest-first dict that looks like token usage: a 'usage' value or one with *_tokens keys."""
+    if depth > 6 or not isinstance(obj, (dict, list)):
+        return None
+    items = obj.items() if isinstance(obj, dict) else enumerate(obj)
+    if isinstance(obj, dict):
+        if isinstance(obj.get("usage"), dict):
+            return obj["usage"]
+        if any(isinstance(k, str) and k.endswith("_tokens") and isinstance(v, (int, float)) for k, v in obj.items()):
+            return obj
+    for _, value in items:
+        found = find_usage(value, depth + 1)
+        if found:
+            return found
+    return None
+
+
+def find_number(obj, names, depth=0):
+    if depth > 6 or not isinstance(obj, (dict, list)):
+        return None
+    items = obj.items() if isinstance(obj, dict) else enumerate(obj)
+    for key, value in items:
+        if key in names and isinstance(value, (int, float)):
+            return value
+        found = find_number(value, names, depth + 1)
+        if found is not None:
+            return found
+    return None
+
+
+def short(value, n=160):
+    s = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    s = s.replace("\n", " ")
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
+args = sys.argv[1:]
+run_id = "agy-" + uuid.uuid4().hex[:8]
+task = (arg_after(args, "-p", "--print", "--prompt") or "").strip().replace("\n", " ")
+log = lambda text: ev.run_log(run_id, text)
+
+ev.emit({"id": run_id, "kind": "agy", "event": "start", "status": "running", "task": task[:200],
+         "cwd": os.getcwd(), "pid": os.getpid(), "conversation_id": arg_after(args, "--conversation"),
+         "model": arg_after(args, "--model"), "mode": arg_after(args, "--mode"),
+         "timeout_seconds": parse_duration(arg_after(args, "--print-timeout"))})
+log(f"▶ agy {run_id}  ({os.getcwd()})\n  task: {task}\n")
+subprocess.run(["agent-watch", run_id, f"agy: {task[:40]}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+started = time.time()
+proc = subprocess.Popen([AGY, *with_stream_json(args)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+
+def finish(end):
+    end.update({"id": run_id, "kind": "agy", "event": "end"})
+    end.setdefault("duration_seconds", round(time.time() - started, 1))
+    ev.emit(end)
+    tok = (end.get("usage") or {}).get("total_tokens")
+    log(f"\n{ev.END_MARK} {end['status']} · {end['duration_seconds']:.0f}s"
+        + (f" · {end.get('num_turns')} turns" if end.get("num_turns") else "")
+        + (f" · {tok} tok" if tok else ""))
+
+
+def on_signal(signum, _frame):
+    proc.terminate()
+    finish({"status": "KILLED"})
+    sys.exit(128 + signum)
+
+
+signal.signal(signal.SIGTERM, on_signal)
+signal.signal(signal.SIGINT, on_signal)
+
+PROGRESS_SECONDS = 3
+progress = {"steps": 0, "errors": 0, "step": None, "usage": None, "context_pct": None}
+last_sent, last_seen = 0.0, None
+
+
+def send_progress(force=False):
+    """A `progress` event for the dashboard, at most every few seconds and only on change."""
+    global last_sent, last_seen
+    now = time.time()
+    snapshot = json.dumps(progress, sort_keys=True, ensure_ascii=False)
+    if snapshot == last_seen or (not force and now - last_sent < PROGRESS_SECONDS):
+        return
+    event = {"id": run_id, "kind": "agy", "event": "progress", "steps": progress["steps"],
+             "errors": progress["errors"], "step": progress["step"]}
+    if progress["usage"]:
+        event["usage"] = progress["usage"]
+    if progress["context_pct"] is not None:
+        event["context_pct"] = progress["context_pct"]
+    ev.emit(event)
+    last_sent, last_seen = now, snapshot
+
+
+result, in_text = None, False
+for line in proc.stdout:
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        log(line.rstrip())
+        continue
+    if msg.get("event") != "result":
+        usage = find_usage(msg)
+        if usage:
+            progress["usage"] = {k: v for k, v in usage.items() if isinstance(v, (int, float))}
+            window = find_number(msg, ("context_window", "context_window_size", "max_context_tokens"))
+            used = find_number(usage, ("input_tokens", "prompt_tokens", "total_input_tokens"))
+            if window and used:
+                progress["context_pct"] = min(100, round(used / window * 100))
+    if msg.get("event") == "result":
+        result = msg.get("result") or {}
+        continue
+    step = msg.get("step_update") or {}
+    if step.get("text_delta"):
+        with open(os.path.join(ev.RUNS, f"{run_id}.log"), "a") as f:
+            f.write(step["text_delta"])
+        in_text = True
+    if step.get("step_type") == "tool" and step.get("state") == "ACTIVE":
+        params = (step.get("tool_info") or {}).get("parameters") or {}
+        log(("\n" if in_text else "") + f"▸ {step.get('tool_name')} {short(params)}")
+        in_text = False
+        progress["steps"] += 1
+        progress["step"] = f"{step.get('tool_name')} {short(params, 100)}"
+        send_progress(force=True)
+    if step.get("step_type") == "tool" and step.get("state") not in ("ACTIVE", "DONE", None):
+        log(f"  ✗ {step.get('tool_name')}: {step.get('state')}")
+        progress["errors"] += 1
+        send_progress(force=True)
+    send_progress()
+
+stderr = proc.stderr.read()
+proc.wait()
+if stderr.strip():
+    log("\n" + stderr.strip())
+
+if result is None:
+    result = {"status": "SUCCESS" if proc.returncode == 0 else "FAILED", "response": ""}
+status = result.get("status", "UNKNOWN")
+if status == "SUCCESS" and result.get("denied_actions"):
+    status = "DENIED"
+elif status == "SUCCESS" and not str(result.get("response", "")).strip():
+    status = "EMPTY"
+finish({"status": status, "exit_code": proc.returncode, "conversation_id": result.get("conversation_id"),
+        "num_turns": result.get("num_turns"), "usage": result.get("usage"),
+        "duration_seconds": result.get("duration_seconds") or round(time.time() - started, 1),
+        "summary": str(result.get("response", ""))[:300], "denied_actions": result.get("denied_actions")})
+
+print(json.dumps(result, ensure_ascii=False), flush=True)
+sys.exit(proc.returncode)

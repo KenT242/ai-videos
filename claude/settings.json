@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(agy-tracked:*)",
+      "Bash(~/.local/bin/agy-tracked:*)",
+      "Bash(/home/kent/.local/bin/agy-tracked:*)",
+      "Bash(node ~/.claude/skills/animate-director/scripts/run.mjs:*)",
+      "Bash(node /home/kent/.claude/skills/animate-director/scripts/run.mjs:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "agent-dashboard@kent-mods": true,
+    "agent-guard@kent-mods": true
+  },
+  "extraKnownMarketplaces": {
+    "kent-mods": {
+      "source": {
+        "source": "directory",
+        "path": "/home/kent/code/claude-mods"
+      }
+    }
+  },
+  "theme": "dark"
+}

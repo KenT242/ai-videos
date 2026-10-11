@@ -1,0 +1,7 @@
+{
+  "name": "agent-dashboard",
+  "version": "0.2.0",
+  "author": { "name": "kent" },
+  "description": "Dashboard of agy and subagent runs: live cards, band above the prompt, status line, toasts",
+  "types": "./types/index.d.ts"
+}

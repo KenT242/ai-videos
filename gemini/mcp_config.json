@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "/mnt/e/Tools/blender-mcp-venv/Scripts/blender-mcp.exe",
+      "disabled": false
+    }
+  }
+}

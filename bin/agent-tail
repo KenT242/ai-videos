@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Follow one task's live log (~/.claude/agent-runs/<id>.log) until it ends, then linger and exit."""
+import os, sys, time
+
+END_MARK = "■ END"
+LINGER_SECONDS = 90
+IDLE_EXIT_SECONDS = 2 * 3600
+
+path = os.path.expanduser(f"~/.claude/agent-runs/{sys.argv[1]}.log")
+waited = 0
+while not os.path.exists(path):
+    time.sleep(0.5)
+    waited += 0.5
+    if waited > 30:
+        print(f"no log at {path}")
+        time.sleep(LINGER_SECONDS)
+        sys.exit(0)
+
+last_growth = time.time()
+with open(path) as f:
+    pending = ""
+    while True:
+        chunk = f.read()
+        if chunk:
+            last_growth = time.time()
+            sys.stdout.write(chunk)
+            sys.stdout.flush()
+            pending = (pending + chunk)[-4096:]
+            if END_MARK in pending:
+                break
+        elif time.time() - last_growth > IDLE_EXIT_SECONDS:
+            print("\n(no output for 2h, closing)")
+            break
+        else:
+            time.sleep(0.3)
+
+
+
+def wait_for_key(seconds):
+    """Return on any keypress in this pane, or after `seconds`."""
+    import select, termios, tty
+    if not sys.stdin.isatty():
+        time.sleep(seconds)
+        return
+    fd = sys.stdin.fileno()
+    saved = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        termios.tcflush(fd, termios.TCIFLUSH)  # ignore keys typed while the task ran
+        select.select([fd], [], [], seconds)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+
+print(f"\n\033[2m(press any key to close · closes by itself in {LINGER_SECONDS}s)\033[0m", flush=True)
+wait_for_key(LINGER_SECONDS)

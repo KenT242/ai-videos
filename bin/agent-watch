@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Open a pane that follows one task's live log, next to the terminal you are watching.
+#   inside tmux        -> split the current tmux window
+#   Windows Terminal   -> split the current WT window (right column, stacked), focus back on Claude
+#   otherwise          -> a pane in the detached tmux session "agents"
+# Usage: agent-watch <run-id> [title]
+set -u
+id="$1"; title="${2:-$1}"
+BIN="$HOME/.local/bin"
+mkdir -p "$HOME/.claude/agent-runs"
+exec 9>"$HOME/.claude/agent-runs/.watch.lock"
+flock -w 60 9
+
+if [ -n "${TMUX:-}" ]; then
+  if [ -n "$(tmux list-panes -F '#{pane_title}' | grep '^⧉ ')" ]; then
+    target=$(tmux list-panes -F '#{pane_id} #{pane_title}' | grep ' ⧉ ' | tail -1 | cut -d' ' -f1)
+    pane=$(tmux split-window -d -v -t "$target" -P -F '#{pane_id}' "$BIN/agent-tail $id")
+  else
+    pane=$(tmux split-window -d -h -l 45% -P -F '#{pane_id}' "$BIN/agent-tail $id")
+  fi
+  tmux select-pane -t "$pane" -T "⧉ $title"
+  tmux set-option -w pane-border-status top >/dev/null
+  exit 0
+fi
+
+if [ "${AGENT_WATCH_TARGET:-}" != "tmux" ] && [ "${USE_TMUX:-0}" != "1" ] && command -v wt.exe >/dev/null; then
+  tail=(wsl.exe -d "${WSL_DISTRO_NAME:-Ubuntu}" -- "$BIN/agent-tail" "$id")
+  # agent-tail processes still alive = agent panes already open on the right.
+  if [ "$(pgrep -fc "^python3 $BIN/agent-tail ")" -gt 0 ]; then
+    wt.exe -w 0 move-focus right \; split-pane -H --title "$title" "${tail[@]}" \; move-focus left >/dev/null 2>&1
+  else
+    wt.exe -w 0 split-pane -V --size 0.45 --title "$title" "${tail[@]}" \; move-focus left >/dev/null 2>&1
+  fi
+  sleep 1.5  # let the new pane's agent-tail start, so the next task stacks under it
+  exit 0
+fi
+
+SESSION=agents
+if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+  pane=$(tmux new-session -d -s "$SESSION" -x 220 -y 60 -P -F '#{pane_id}' "$BIN/agent-tail $id")
+  tmux set-option -t "$SESSION" pane-border-status top \; set-option -t "$SESSION" mouse on >/dev/null
+else
+  pane=$(tmux split-window -d -t "$SESSION" -P -F '#{pane_id}' "$BIN/agent-tail $id")
+  tmux select-layout -t "$SESSION" tiled >/dev/null
+fi
+tmux select-pane -t "$pane" -T "$title"

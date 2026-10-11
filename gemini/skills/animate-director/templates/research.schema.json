@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "required": ["claims", "answers"],
+  "properties": {
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "support", "onScreen", "sources"],
+        "properties": {
+          "id": { "type": "string" },
+          "claim": { "type": "string" },
+          "support": { "type": "string", "enum": ["strong", "weak", "conflicting", "false"] },
+          "correction": { "type": "string" },
+          "date": { "type": "string" },
+          "onScreen": { "type": "string" },
+          "note": { "type": "string" },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url", "title"],
+              "properties": { "url": { "type": "string" }, "title": { "type": "string" }, "quote": { "type": "string" }, "primary": { "type": "boolean" } }
+            }
+          }
+        }
+      }
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "answer", "sources"],
+        "properties": {
+          "question": { "type": "string" },
+          "answer": { "type": "string" },
+          "onScreen": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "object", "required": ["url", "title"], "properties": { "url": { "type": "string" }, "title": { "type": "string" }, "quote": { "type": "string" } } } }
+        }
+      }
+    }
+  }
+}

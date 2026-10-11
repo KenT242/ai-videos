@@ -1,0 +1,28 @@
+{
+  "model": "gemini-3.8-flash-medium",
+  "parallel": "max",
+  "timeout": "900s",
+  "ssimMin": 0.97,
+  "eras": [
+    {
+      "n": 1,
+      "file": "src/era-01.js",
+      "prefix": "e01",
+      "fn": "e01",
+      "t0": 0,
+      "t1": 4,
+      "panels": [3.0],
+      "cues": { "born": 2.25 },
+      "bridgeIn": null,
+      "bridgeOut": "the page rot(rect(210,1050,620,380),520,1240,-0.05) is fully in frame at t=4 (no push-in after 3.5)",
+      "motion": [
+        [0.25, "write 'Can machines' on the page: handText frac = ev(0.25, 1.0)"],
+        [1.25, "write 'think': handText frac = ev(1.25, 0.5); the pen follows the writing"],
+        [2.25, "the spark pops in where the '?' was: popS(2.25), mood 'wow' until 3.0 then 'smile'; three sparkles blink on B"],
+        [2.25, "the pen flinches away: EZ.o3(ev(2.25, 0.3)) to +220,+80"]
+      ],
+      "life": "a moth circles the lamp (sin/cos of TT); the cat's tail sways",
+      "notes": "keep the year tag and caption exactly as drawn"
+    }
+  ]
+}

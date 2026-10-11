@@ -1,0 +1,6 @@
+{
+  "name": "agent-guard",
+  "version": "0.1.0",
+  "author": { "name": "kent" },
+  "description": "Hỏi lại hoặc chặn lệnh nguy hiểm, việc đọc file bí mật, và brief gửi agy có chứa secret"
+}
