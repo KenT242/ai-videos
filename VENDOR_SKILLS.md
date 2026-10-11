@@ -24,7 +24,7 @@ Their LICENSE.txt forbids copying them outside Anthropic's services. They sync a
 
 These ship with the Antigravity CLI in `~/.gemini/antigravity-cli/builtin/skills/` and install with it.
 
-- `agy-customizations` — >-
+- `agy-customizations` — Comprehensive guide and reference for the Antigravity Customization System. Use to explain how customizations work, their loading priority,
 - `antigravity_guide` — Provides a comprehensive guide, quick reference, and sitemap for Google Antigravity (AGY), including the Antigravity CLI (agy), Antigravity 
 - `automation` — Interactive guide to design and create a scheduled background automation. Use this skill when the user wants to create an automated or recur
 - `generative_ui` — How to render rich interactive HTML widgets inline in the chat or as standalone artifacts. Use this skill when you want to show the user dia
