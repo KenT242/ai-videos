@@ -9,6 +9,7 @@ Mods, skills and config for Claude Code and Gemini (Antigravity CLI), used for p
 - `claude/CLAUDE.md`, `claude/settings.json` — global Claude Code instructions and settings
 - `gemini/skills/` — Antigravity skills: `animate`, `animate-director`, `blender`, `orchestrator`
 - `gemini/GEMINI.md`, `gemini/mcp_config.json`, `gemini/skills.json` — Antigravity config
+- `gemini/mcp/blender/` — Blender MCP tool definitions and instructions as Antigravity loaded them
 - `bin/` — helper scripts: `agy-tracked`, `agent-event`, `agent-tail`, `agent-watch`
 
 Not included: vendor skills (listed in [VENDOR_SKILLS.md](VENDOR_SKILLS.md)), credentials, history and logs.
