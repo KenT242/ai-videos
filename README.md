@@ -11,7 +11,7 @@ Mods, skills and config for Claude Code and Gemini (Antigravity CLI), used for p
 - `gemini/GEMINI.md`, `gemini/mcp_config.json`, `gemini/skills.json` — Antigravity config
 - `bin/` — helper scripts: `agy-tracked`, `agent-event`, `agent-tail`, `agent-watch`
 
-Not included: Anthropic-provided skills (docx, pdf, pptx, xlsx, skill-creator, …) whose license forbids copying them, Antigravity built-in skills, credentials, history and logs.
+Not included: vendor skills (listed in [VENDOR_SKILLS.md](VENDOR_SKILLS.md)), credentials, history and logs.
 
 ## Install
 
